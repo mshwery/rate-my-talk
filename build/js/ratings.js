@@ -9,10 +9,12 @@
   var ratings = ko.observableArray();
 
   // on this user's rating, emit rating
-  var userRating = ko.observable();
+  var userRating = ko.observable(localStorage.getItem('user-rating'));
 
-  var hasRated = ko.observable();
+  // convenience method so i could use a timeout to add .rated class to body
+  var hasRated = ko.observable(!!userRating() && ratings().length);
 
+  // average rating number to 1 decimal precision
   var averageRating = ko.computed(function() {
     if (ratings().length) {
       return (d3.sum(ratings().map(function(rating) {
@@ -23,14 +25,17 @@
     }
   });
 
+  // emit 'rating' message on websocket channel
   var submitRating = function(rating) {
     sckt.emit('rating', { rating: rating });
   };
 
+  // push a single rating to the rating obsArr
   var addRating = function(rating) {
     ratings.push(rating);
   };
 
+  // push a bunch of new ratings all together to the rating obsArr
   var addRatings = function(ratingArray) {
     console.log(ratingArray);
     ratings(ratings().concat(ratingArray));
@@ -41,7 +46,11 @@
   // listen to changes on the userRating value
   // submit that new rating 
   userRating.subscribe(function(newValue) {
-    if (newValue != null) submitRating(newValue);
+    if (newValue != null) {
+      submitRating(newValue);
+      // also add to local storage so page refresh the browser still knows you rated
+      localStorage.setItem('user-rating', newValue);
+    }
 
     setTimeout(function() {
       hasRated(true);
@@ -71,6 +80,8 @@
     averageRating: averageRating
   };
 
+
+
   // apply knockout data bindings
   $(document).ready(function() {
     ko.applyBindings(viewmodel);
@@ -98,34 +109,40 @@
       })
       .color('#4A90E2');
 
+    var dateExtent = ko.observableArray();
+
     // render it with some data whenever the ratings obsArray changes
     ratings.subscribe(function(newValue) {
-      var extent = d3.extent(newValue, function(d) { return new Date(d.date); });
-      xScale.domain(extent);
-      xScale2.domain(extent);
+      dateExtent(d3.extent(newValue, function(d) { return new Date(d.date); }));
+      xScale.domain(dateExtent());
       chart.draw(newValue);
-      cumulative.draw([newValue]);
     });
 
     // transform data into aggregate totals for each rating
     function bundleRatings(data) {
       var ratingHash = {},
-        ratingArray = [];
+        ratingArray = [0,0,0,0,0];
 
       for (var i = 0, max = data.length; i < max; i++) {
         ratingHash[data[i].rating] = (ratingHash[data[i].rating] || 0) + 1;
       }
 
-      for (var rating in ratingHash) {
-        if (ratingHash.hasOwnProperty(rating)) {
-          ratingArray.push({
-            rating: +rating,
-            count: ratingHash[rating]
-          });
+      for (var j = 0; j < ratingArray.length; j++) {
+        ratingArray[j] = {
+          rating: j + 1,
+          count: ratingHash[ j + 1 ]
         }
       }
+      // for (var rating in ratingHash) {
+      //   if (ratingHash.hasOwnProperty(rating)) {
+      //     ratingArray[rating] = {
+      //       rating: +rating,
+      //       count: ratingHash[rating]
+      //     };
+      //   }
+      // }
 
-      return ratingArray.sort(sortByRating);
+      return ratingArray;d//.sort(sortByRating);
     }
 
     function sortByRating(a, b) {
@@ -150,7 +167,7 @@
       })
       .initialH(0)
       .height(function(d) {
-        return barHeight(d.count);
+        return barHeight(d.count) || 1;
       })
       .width(function(d, i) {
         return barX.rangeBand() - padding;
@@ -159,9 +176,19 @@
         return barX(d.rating) + (padding / 2);
       })
       .yAttr(function(d, i) {
-        return height - barHeight(d.count);
+        return height - (barHeight(d.count) || 1);
       })
       .color('#4A90E2');
+
+    // update the bar chart when ratings change      
+    ratings.subscribe(function(newValue){
+      var data = bundleRatings(newValue);
+      
+      var max = d3.max(data, function(d) { return d.count; });
+      barHeight.domain([0, max]);
+
+      bars.draw(data);
+    });
 
 
     var avgCumulative = ko.observable(0);
@@ -198,35 +225,11 @@
       .chart('AreaGraph')
       .area(area);
 
-    ratings.subscribe(function(newValue){
-      var data = bundleRatings(newValue);
-      
-      var max = d3.max(data, function(d) { return d.count; });
-      barHeight.domain([0, max]);
-
-      // update domain 
-      // barX.domain(data.map(function(d) {
-      //   return d.rating;
-      // }));
-
-      bars.draw(data);
+    // update the cumulative area graph when ratings change
+    ratings.subscribe(function(newValue) {
+      xScale2.domain(dateExtent());
+      cumulative.draw([newValue]);
     });
-
-
-
-    // fakeRatings((function() {
-    //   var count = 50,
-    //     mockData = [];
-
-    //   while(count--) {
-    //     mockData.push({
-    //       rating: Math.round(Math.random() * 4) + 1,
-    //       date: +new Date() + Math.round(Math.random() * 60000)
-    //     });
-    //   }
-
-    //   return mockData;
-    // })());
 
   });
 
