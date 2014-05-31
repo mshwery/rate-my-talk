@@ -190,34 +190,50 @@
       bars.draw(data);
     });
 
+    // fn to transform a datapoint's count prop to the cumulative avg so far from previous datapoints
+    var getCumulativeAvg = function(d, i, avg) {
+      var c = avg,
+        r = +d.rating,
+        count = i + 1;
 
-    var avgCumulative = ko.observable(0);
+      if (r < c) r = -r;
 
-    // reset the avg cumulative any time the data set changes
-    ratings.subscribe(function(newValue) {
-      avgCumulative(0);
-    });
+      var avg = ((c * i) + r) / count;
+      avgCumulative(avg);
+      
+      return yScale(avg);
+    };
 
-    var xScale2 = d3.time.scale().range([10, 100 - 10]);   
+    var transformToCumulativeAvg = function(data) {
+      var newData = data.concat([]),
+        avg = 0;
 
-    var area = d3.svg.area()
-      .x(function(d) {
-        return xScale2(new Date(d.date));
-      })
-      .y0(height)
-      .y1(function(d, i) {
-        var c = avgCumulative(),
-          r = +d.rating,
-          count = i + 1;
-
-        if (r < c) r = -r;
-
-        var avg = ((c * i) + r) / count;
-        avgCumulative(avg);
-        
-        return yScale(avg);
+      newData.forEach(function(datapoint, i) {
+        datapoint.rating = getCumulativeAvg(datapoint, i, avg);
       });
 
+      return newData;
+    };
+
+
+
+
+
+
+
+    var areaXScale = d3.time.scale().range([10, 100 - 10]);
+
+    var getDateOnScale = function(d) {
+      return areaXScale(new Date(d.date));
+    };
+
+    // define the area transformer, translates datapoints into path
+    var area = d3.svg.area()
+      .x(getDate)
+      .y0(height)
+      .y1(getCumulativeAvg);
+
+    // define the cumulative avg chart using the AreaGraph blueprint
     var cumulative = d3.select('.cumulative')
       .append('svg')
       .attr('height', height)
@@ -227,9 +243,22 @@
 
     // update the cumulative area graph when ratings change
     ratings.subscribe(function(newValue) {
-      xScale2.domain(dateExtent());
+      // reset the avg cumulative any time the data set changes
+      var data = transformToCumulativeAvg(newValue);
+
+      // reset the domain with the current extent of the dates
+      areaXScale.domain(dateExtent());
+
+      // redraw with new data
       cumulative.draw([newValue]);
     });
+
+    
+
+
+
+
+
 
   });
 
