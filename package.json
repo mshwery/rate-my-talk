@@ -1,0 +1,27 @@
+{
+  "name": "node-d3-charts",
+  "version": "0.0.1",
+  "description": "a combination of d3 + d3.chart + websockets",
+  "dependencies": {
+    "sockjs": "*",
+    "hiredis": "*",
+    "redis": "*",
+    "express": "3.x",
+    "jade": "latest",
+    "jquery": "latest",
+    "moment": "latest",
+    "heroku-redis-client": "~0.3.3"
+  },
+  "devDependencies": {
+    "gulp-rename": "^1.2.0",
+    "gulp-concat": "^2.2.0",
+    "gulp-clean": "^0.3.0",
+    "gulp-usemin": "^0.3.4",
+    "gulp-util": "^2.2.14",
+    "gulp": "^3.6.2",
+    "gulp-uglify": "^0.3.0",
+    "gulp-jshint": "^1.6.1",
+    "gulp-sass": "^0.7.1"
+  },
+  "author": "@mshwery"
+}
